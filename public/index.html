@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.13/css/all.css">
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script src="https://js.pusher.com/4.1/pusher.min.js"></script>
+    <title>A GO Voting Poll Application With Pusher </title>
+</head>
+
+<body>
+    <div id="msg" style="display: none; padding: 1em; position: fixed; margin: 0px 5px;"></div>
+    <div id="app" class="container">
+        <div class="row" style="margin: 1em 0em" v-for="(poll, index) in polls">
+            <div class="card col-md-4" style="margin: 20px auto; width: 25rem; background: rgb(93, 95, 104)">
+                <img class="card-img-top" :src="poll.src" alt="Card image">
+                <div class="card-body">
+                    <p class="card-text text-center" style="font-size: 1.5em; color: white; font-weight: bold"> {{ poll.topic }} as the best JS framework </p>
+                    <form>
+                        <div style="background: white; color: black; padding: 1em; border-radius: 5px;">
+                            <input type="radio" :value="poll.name" :name="poll.name" @change="upvote(index)"> Yes
+                            <span style="padding-left: 60%;">
+                                <i class="fas fa-thumbs-up"></i> ({{ poll.upvotes }}) </span>
+                        </div>
+                        <hr>
+                        <div style="background: white; color: black; padding: 1em; border-radius: 5px;">
+                            <input type="radio" :value="poll.name" :name="poll.name" @change="downvote(index)"> No
+                            <span style="padding-left: 60%;">
+                                <i class="fas fa-thumbs-down"></i> ({{ poll.downvotes }}) </span>
+                        </div>
+                    </form>
+                    <button class="btn btn-block" style="margin: 1em 0; background: #1bff8b; cursor: pointer; font-weight: bold" v-on:click="UpdatePoll(index)">
+                    Vote </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data: {
+                polls: [],
+                click: [],
+            },
+            created: function () {
+                const pusher = new Pusher('PUSHER_APP_ID', {
+                    cluster: 'app_cluster',
+                    encrypted: true
+                });
+
+                const channel = pusher.subscribe('poll-channel');
+
+                channel.bind('poll-update', data => {
+                    this.polls[data.id - 1].upvotes = data.upvotes;
+                    this.polls[data.id - 1].downvotes = data.downvotes;
+                });
+
+                axios.get('/polls')
+                    .then(res => this.polls = res.data.items ? res.data.items : [])
+                    .catch(e => this.failed('Unsuccesful'))
+            },
+            methods: {
+                upvote: function (n) {
+                    if (this.click[n] == true) {
+                        this.polls[n].downvotes -= 1;
+                        this.polls[n].upvotes += 1;
+                    } else {
+                        this.polls[n].upvotes += 1;
+                        this.click[n] = true;
+                    }
+                },
+                downvote: function (n) {
+                    if (this.click[n] == true) {
+                        this.polls[n].upvotes -= 1;
+                        this.polls[n].downvotes += 1;
+                    } else {
+                        this.polls[n].downvotes += 1;
+                        this.click[n] = true;
+                    }
+                },
+                UpdatePoll: function (index) {
+                    let targetPoll = index + 1;
+
+                    axios.put('/update/' + targetPoll, this.polls[index])
+                        .then(res => this.approved('Successful'))
+                        .catch(e => this.failed('Unsuccesful'))
+                },
+                approved: function (data) {
+                    $("#msg").css({
+                        "background-color": "rgb(94, 248, 94)",
+                        "border-radius": "20px"
+                    });
+                    $('#msg').html(data).fadeIn('slow');
+                    $('#msg').delay(3000).fadeOut('slow');
+                },
+                failed: function (data) {
+                    $("#msg").css({ "background-color": "rgb(248, 66, 66)", "border-radius": "20px" });
+                    $('#msg').html(data).fadeIn('slow');
+                    $('#msg').delay(3000).fadeOut('slow');
+                }
+            }
+        })
+    </script>
+
+</body>
+</html>
